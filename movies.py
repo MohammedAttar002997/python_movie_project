@@ -1,11 +1,10 @@
 import os
 import random as rnd
-import statistics
 import requests
+import statistics
 from fuzzywuzzy import fuzz
-from storage import movie_storage_sql as storage
 from dotenv import load_dotenv
-
+from storage import movie_storage_sql as storage
 from ui.website_generator import load_html_data, serialize_movie, save_to_html
 
 COLOR_FORMAT_MAP = {
@@ -33,61 +32,88 @@ MOVIES_URL = f"https://www.omdbapi.com/?apikey={MOVIES_API_KEY}&t="
 
 # Getting The User Choice
 def user_choice():
+    """
+        Displays the main menu and handles user navigation through the application.
+
+        This function acts as the central controller, calling specific functions
+        based on the integer input provided by the user.
+        """
 
     # Get the list of movies from the database
-
     movies_data = storage.list_movies()
 
 
-    # Looping over the menu to show it for the user
-    for num, value in MENU.items():
-        print(
-            COLOR_FORMAT_MAP["user_choice_format"][0] + str(num) + str(value) + COLOR_FORMAT_MAP["user_choice_format"][
-                1])
-    print()
 
     # Checking user choice
-    while True:
-        choice = int(input("\nEnter choice (0 - 9): ").strip())
-        if choice not in range(10) or choice == "":
-            print(COLOR_FORMAT_MAP["wrong_choice_format"][0] + "Invalid choice. Please enter a valid choice." +
-                  COLOR_FORMAT_MAP["wrong_choice_format"][1])
-            choice = int(input("Enter choice (1-9): ").strip())
-        match choice:
-            case 0:
-                quit("Exiting the program. Goodbye!")
-            case 1:
-                movies_data = storage.list_movies()
-                print()
-                movies_list(movies_data)
-            case 2:
-                add_movie(movies_data)
-            case 3:
-                del_movie(movies_data)
-            case 4:
-                update_movie(movies_data)
-            case 5:
-                movies_stats(movies_data)
-            case 6:
-                random_movie(movies_data)
-            case 7:
-                search_movie(movies_data)
-            case 8:
-                sorted_by_rating(movies_data)
-            case 9:
-                movies_data = storage.list_movies()
-                generate_movie(movies_data)
-
+    try:
+        while True:
+            # Looping over the menu to show it for the user
+            for num, value in MENU.items():
+                print(
+                    COLOR_FORMAT_MAP["user_choice_format"][0] + str(num) + str(value) +
+                    COLOR_FORMAT_MAP["user_choice_format"][
+                        1])
+            print()
+            choice = int(input("\nEnter choice (0 - 9): ").strip())
+            if choice not in range(10) or choice == "":
+                print(COLOR_FORMAT_MAP["wrong_choice_format"][0] + "Invalid choice. Please enter a valid choice." +
+                      COLOR_FORMAT_MAP["wrong_choice_format"][1])
+                choice = int(input("Enter choice (1-9): ").strip())
+            match choice:
+                case 0:
+                    quit("Exiting the program. Goodbye!")
+                case 1:
+                    movies_data = storage.list_movies()
+                    print()
+                    movies_list(movies_data)
+                case 2:
+                    add_movie(movies_data)
+                case 3:
+                    del_movie(movies_data)
+                case 4:
+                    update_movie(movies_data)
+                case 5:
+                    movies_stats(movies_data)
+                case 6:
+                    random_movie(movies_data)
+                case 7:
+                    search_movie(movies_data)
+                case 8:
+                    sorted_by_rating(movies_data)
+                case 9:
+                    movies_data = storage.list_movies()
+                    generate_movie(movies_data)
+    except requests.exceptions.Timeout:
+        print("\nError: The request timed out. Please check your internet connection.")
+    except requests.exceptions.RequestException as e:
+        print(f"\nError: A network error occurred: {e}")
+    except Exception as exception:
+        print(f"\nAn unexpected error occurred: {exception}")
 
 # Showing movies list
 def movies_list(movies):
+    """
+        Prints a formatted list of all movies currently in the database.
+
+        Args:
+            movies (dict): A dictionary where keys are movie titles and values
+                           are dictionaries containing 'year' and 'rating'.
+        """
     print(f"{len(movies)} movies in total")
     for movie,data in movies.items():
         print(f"{movie} ({data["year"]}): {data["rating"]}")
+    print()
 
 
 # Add movie
 def add_movie(movies):
+    """
+        Prompts the user for a movie title, fetches its details from the OMDb API,
+        and saves it to the database.
+
+        Args:
+            movies (dict): The current movie dataset used to check for duplicates.
+        """
     try:
         movie_name = input("Enter movie name: ")
 
@@ -98,8 +124,8 @@ def add_movie(movies):
             print(res["Error"]+"\n")
             movie_name = input("Enter movie name or press q to go back to the main menu: ")
             if movie_name == "q":
-                print("\n")
-                user_choice()
+                print("\nReturning to main menu...\n")
+                return
             final_url = MOVIES_URL + movie_name
             response = requests.get(final_url)
             res = response.json()
@@ -109,19 +135,29 @@ def add_movie(movies):
         else:
             storage.add_movie(res["Title"],res["Year"], res["imdbRating"],res["Poster"])
         print(f"\nMovie {res["Title"]} has been added")
-    except ValueError as value_error:
-        print(f"This can not be a movie name {value_error}")
+    except requests.exceptions.Timeout:
+        print("\nError: The request timed out. Please check your internet connection.")
+    except requests.exceptions.RequestException as e:
+        print(f"\nError: A network error occurred: {e}")
+    except Exception as exception:
+        print(f"\nAn unexpected error occurred: {exception}")
 
 
 # Update movie rating
 def update_movie(movies):
+    """
+        Updates the rating of an existing movie in the database.
+
+        Args:
+            movies (dict): The current movie dataset to verify movie existence.
+        """
     movie_name = input("Enter movie name: ")
     while movie_name not in movies:
         movie_name = input(
             f"Movie name {movie_name} does not exist please enter a valid movie name or press q to exit: ")
         if movie_name == "q":
-            print("\n")
-            user_choice()
+            print("\nReturning to main menu...\n")
+            return
     movie_rating = float(input("Enter new movie rating (0-10): "))
     while 0.0 > movie_rating or movie_rating > 10.0:
         movie_rating = float(input(f"Rating {movie_rating} is invalid please enter another rating: "))
@@ -132,18 +168,31 @@ def update_movie(movies):
 
 # Delete a movie
 def del_movie(movies):
+    """
+        Removes a movie from the database based on the user's input.
+
+        Args:
+            movies (dict): The current movie dataset to verify movie existence.
+        """
     movie_name = input("Enter movie name: ")
     while movie_name not in movies:
         movie_name = input(f"Movie {movie_name} does not exist please enter a valid movie name or press q to exit:")
         if movie_name == "q":
-            print("\n")
-            user_choice()
+            print("\nReturning to main menu...\n")
+            return
     storage.delete_movie(movie_name)
     print(f"Movie {movie_name} has been deleted")
 
 
 # Showing movie stats
 def movies_stats(movies):
+    """
+        Calculates and prints statistics about the movie collection, including
+        average rating, median rating, and the best/worst performing movies.
+
+        Args:
+            movies (dict): The movie dataset used for statistical calculations.
+        """
     max_key = ""
     max_value = 0.0
     min_key = ""
@@ -171,6 +220,12 @@ def movies_stats(movies):
 
 # Suggesting a random movie for the user
 def random_movie(movies):
+    """
+        Selects and displays a single random movie from the collection.
+
+        Args:
+            movies (dict): The movie dataset to pick from.
+        """
     rand_value = rnd.sample(list(movies.items()), 1)
     print(
         f"Your movie for tonight: {rand_value[0][0]} ({rand_value[0][1]["year"]}), it's rated {rand_value[0][1]["rating"]}")
@@ -178,6 +233,12 @@ def random_movie(movies):
 
 # Search a movie
 def search_movie(movies):
+    """
+        Searches the collection for movies matching a user's query using fuzzy string matching.
+
+        Args:
+            movies (dict): The movie dataset to search within.
+        """
     query = input("Enter part of movie name: ")
     for movie, value in movies.items():
         # if query in movie:
@@ -187,6 +248,12 @@ def search_movie(movies):
 
 # Sort movies in descending order by rating
 def sorted_by_rating(movies):
+    """
+        Displays the entire movie collection sorted in descending order by rating.
+
+        Args:
+            movies (dict): The movie dataset to be sorted.
+        """
     value = sorted(movies.items(), key=lambda x: x[1]["rating"], reverse=True)
     print("\n\n")
     for movie, rating in value:
@@ -194,6 +261,15 @@ def sorted_by_rating(movies):
 
 
 def generate_movie(movies):
+    """
+        Generates a static HTML website (movies.html) representing the movie collection.
+
+        This function reads an HTML template, injects serialized movie data into the
+        grid, and saves the final file to the filesystem.
+
+        Args:
+            movies (dict): The movie dataset used to populate the website.
+        """
     movie_html_data = load_html_data('_static/index_template.html')
     output = ''  # define an empty string
     for movie,value in movies.items():
@@ -206,6 +282,10 @@ def generate_movie(movies):
 
 # Our main function where our movies app first launch
 def main():
+    """
+        The main entry point of the application.
+        Initializes the program and launches the user interface.
+        """
     title = "*" * 7 + " Welcome to my movies app " + "*" * 7
     print(title, end="\n\n")
     # Your code here
